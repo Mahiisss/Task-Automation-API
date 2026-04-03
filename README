@@ -1,0 +1,390 @@
+# Task Automation API Service 🤖
+
+A Python-based REST API service for automated task execution with webhook triggers, task chaining, batch execution, scheduling, retry mechanisms, monitoring, and structured error handling.
+
+Built with **FastAPI**, this service demonstrates real-world automation concepts — event-driven workflows, parallel execution, and reliability monitoring.
+
+---
+
+## 🧠 Overview
+
+This service accepts tasks via REST API or webhook triggers, executes them automatically, and returns structured execution logs. It supports multiple task types with modular, reusable logic and advanced features like task chaining, parallel batch execution, and pipeline health monitoring.
+
+---
+
+## 🔁 Workflow Lifecycle
+
+```
+Client / Webhook
+      ↓
+FastAPI Backend
+      ↓
+Task Router (identifies task type)
+      ↓
+Task Executor (modular per type)
+      ↓
+Retry Logic (configurable attempts)
+      ↓
+Execution Logger (logs result)
+      ↓
+Response returned
+```
+
+---
+
+## ⚙️ Core Features
+
+### 🔹 Modular Task Execution
+Each task type has its own execution logic:
+
+| Task Type | What it does |
+|-----------|-------------|
+| `data_transform` | Transforms text (uppercase, lowercase, reverse) |
+| `math` | Performs arithmetic (add, subtract, multiply, divide) |
+| `api_call` | Calls external REST APIs |
+| `email` | Simulates sending emails |
+
+---
+
+### 🔹 Task Chaining 🔗
+Output of one task automatically becomes input of the next task.
+
+```
+Task 1 (data_transform: uppercase)
+      ↓ output flows automatically
+Task 2 (data_transform: reverse)
+      ↓ output flows automatically
+Task 3 (email: sends final result)
+```
+
+---
+
+### 🔹 Batch Execution ⚡
+Run multiple independent tasks in parallel using `asyncio.gather`.
+
+```
+Task A ─┐
+Task B ─┼─→ All run in parallel → Results returned together
+Task C ─┘
+```
+
+---
+
+### 🔹 Task Scheduling ⏰
+Schedule a task to run after a configurable delay (in seconds). Executes in background.
+
+```
+Request received → "Task scheduled for 5 seconds"
+      ↓ (5 seconds later, runs in background)
+Task executes automatically
+      ↓
+Result logged
+```
+
+---
+
+### 🔹 Webhook Trigger ⚡
+Tasks can be triggered via webhook — enabling fully **event-driven automation**.
+
+```
+External system sends HTTP request to webhook URL
+        ↓
+API receives trigger
+        ↓
+Task executes in background
+        ↓
+Result logged automatically
+```
+
+---
+
+### 🔹 Retry Mechanism 🔄
+Every task supports configurable retry logic — handles temporary failures gracefully.
+
+- Failed tasks are retried automatically
+- Default: 3 retry attempts
+- 1 second delay between retries
+- Attempt number tracked in logs
+
+---
+
+### 🔹 Structured Error Handling
+- Try-catch on every task execution
+- Failed tasks return detailed error messages
+- System never crashes on single task failure
+- All errors captured in execution logs with timestamps
+
+---
+
+### 🔹 Monitoring & Stats 📊
+Real-time pipeline health monitoring via `/tasks/stats`:
+
+- Total tasks executed
+- Successful vs failed count
+- Success rate percentage
+- Breakdown by task type
+
+---
+
+### 🔹 Execution Logging
+- Every task gets a unique `task_id` (UUID)
+- Timestamps for `started_at` and `completed_at`
+- Success/failure status per task
+- Full output stored per task
+- Logs accessible via API at any time
+
+---
+
+## 🔗 API Endpoints
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| GET | `/` | Health check |
+| POST | `/tasks/execute` | Execute a single task immediately |
+| POST | `/tasks/chain` | Chain tasks — output flows to next task |
+| POST | `/tasks/batch` | Run multiple tasks in parallel |
+| POST | `/tasks/schedule` | Schedule a task after X seconds |
+| POST | `/webhook/trigger` | Trigger task via webhook (background) |
+| GET | `/tasks/logs` | Get all execution logs |
+| GET | `/tasks/logs/{task_id}` | Get specific task log |
+| GET | `/tasks/stats` | Get pipeline health stats |
+| DELETE | `/tasks/logs` | Clear all logs (for QA/testing) |
+
+---
+
+## 🚀 Running the Project
+
+```bash
+# Clone the repo
+git clone <your-repo-url>
+cd Task-Automation-API
+
+# Create virtual environment
+python -m venv venv
+venv\Scripts\activate        # Windows
+source venv/bin/activate     # Mac/Linux
+
+# Install dependencies
+pip install fastapi uvicorn pydantic httpx
+
+# Run the server
+uvicorn main:app --reload --port 8001
+```
+
+Server runs at: `http://localhost:8001`
+API docs at: `http://localhost:8001/docs`
+
+---
+
+## 🧪 Example Requests
+
+### Single Task
+```json
+POST /tasks/execute
+{
+  "task_type": "data_transform",
+  "payload": {
+    "data": "hello world",
+    "operation": "uppercase"
+  },
+  "retry_count": 3
+}
+```
+**Response:**
+```json
+{
+  "task_id": "3ae0e682-acf0-45f2-b95b-78724b7d01f5",
+  "task_type": "data_transform",
+  "status": "success",
+  "started_at": "2026-04-03T12:56:55.028521",
+  "completed_at": "2026-04-03T12:56:55.029522",
+  "result": {
+    "status": "transformed",
+    "input": "hello world",
+    "output": "HELLO WORLD",
+    "attempt": 1
+  }
+}
+```
+
+---
+
+### Task Chaining
+```json
+POST /tasks/chain
+{
+  "tasks": [
+    {
+      "task_type": "data_transform",
+      "payload": {"data": "hello world", "operation": "uppercase"},
+      "retry_count": 3
+    },
+    {
+      "task_type": "data_transform",
+      "payload": {"operation": "reverse"},
+      "retry_count": 3
+    },
+    {
+      "task_type": "email",
+      "payload": {"to": "admin@example.com", "subject": "Task Complete"},
+      "retry_count": 3
+    }
+  ]
+}
+```
+**Response:**
+```json
+{
+  "chain_id": "abc123",
+  "total_tasks": 3,
+  "completed_tasks": 3,
+  "chain_log": [
+    {"step": 1, "status": "success", "output": {"output": "HELLO WORLD"}},
+    {"step": 2, "status": "success", "output": {"output": "DLROW OLLEH"}},
+    {"step": 3, "status": "success", "output": {"status": "sent"}}
+  ],
+  "final_output": {"status": "sent", "body": "DLROW OLLEH"}
+}
+```
+
+---
+
+### Batch Execution
+```json
+POST /tasks/batch
+{
+  "tasks": [
+    {"task_type": "math", "payload": {"operation": "multiply", "a": 10, "b": 5}, "retry_count": 3},
+    {"task_type": "data_transform", "payload": {"data": "test", "operation": "uppercase"}, "retry_count": 3},
+    {"task_type": "math", "payload": {"operation": "add", "a": 100, "b": 50}, "retry_count": 3}
+  ]
+}
+```
+**Response:**
+```json
+{
+  "batch_id": "xyz789",
+  "total_tasks": 3,
+  "successful": 3,
+  "failed": 0,
+  "results": [
+    {"index": 0, "status": "success", "result": {"result": 50}},
+    {"index": 1, "status": "success", "result": {"output": "TEST"}},
+    {"index": 2, "status": "success", "result": {"result": 150}}
+  ]
+}
+```
+
+---
+
+### Scheduled Task
+```json
+POST /tasks/schedule
+{
+  "task": {
+    "task_type": "data_transform",
+    "payload": {"data": "scheduled task", "operation": "uppercase"},
+    "retry_count": 3
+  },
+  "delay_seconds": 5
+}
+```
+**Response:**
+```json
+{
+  "task_id": "def456",
+  "message": "Task scheduled to run after 5 seconds!",
+  "status": "scheduled"
+}
+```
+
+---
+
+### Pipeline Stats
+```
+GET /tasks/stats
+```
+**Response:**
+```json
+{
+  "total_tasks": 10,
+  "successful": 8,
+  "failed": 2,
+  "success_rate": "80.0%",
+  "task_type_breakdown": {
+    "data_transform": {"total": 4, "successful": 4, "failed": 0},
+    "math": {"total": 3, "successful": 3, "failed": 0},
+    "api_call": {"total": 3, "successful": 1, "failed": 2}
+  }
+}
+```
+
+---
+
+## 🏗️ System Architecture
+
+```
+Client / Webhook
+      ↓
+FastAPI REST API
+      ↓
+┌─────────────────────────────────────┐
+│         Task Router                 │
+│  (identifies task type from request)│
+└─────────────────────────────────────┘
+      ↓
+┌─────────────────────────────────────┐
+│      Modular Task Executors         │
+│  email | transform | math | api     │
+└─────────────────────────────────────┘
+      ↓
+┌─────────────────────────────────────┐
+│         Retry Logic                 │
+│  (3 attempts, 1s delay between)     │
+└─────────────────────────────────────┘
+      ↓
+┌─────────────────────────────────────┐
+│       Execution Logger              │
+│  (task_id, timestamps, status)      │
+└─────────────────────────────────────┘
+      ↓
+Response / Webhook callback
+```
+
+---
+
+## 🧠 What This Project Demonstrates
+
+- Python-based REST API development (FastAPI)
+- Event-driven automation with webhook triggers
+- Task chaining — data flows between tasks automatically
+- Parallel batch execution using asyncio
+- Task scheduling with configurable delays
+- Structured error handling and retry mechanisms
+- Modular, reusable automation logic
+- Execution logging and monitoring
+- Background task processing
+- Pipeline health stats and QA tooling
+
+---
+
+## 🔮 Future Improvements
+
+- Persistent storage (MongoDB/PostgreSQL) for logs
+- Task priority queue
+- Authentication and API keys
+- Real-time monitoring dashboard
+- Cron-based scheduling
+- Integration with visual workflow builders
+
+---
+
+## 🏗️ Tech Stack
+
+| Layer | Technology |
+|-------|-----------|
+| Backend Framework | Python, FastAPI |
+| Data Validation | Pydantic |
+| HTTP Client | httpx |
+| Async Engine | asyncio |
+| Server | Uvicorn |
